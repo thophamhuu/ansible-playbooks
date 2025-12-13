@@ -1,0 +1,68 @@
+---
+- name: Install K8s node (kubeadm)
+  hosts: all
+  become: yes
+  vars:
+    pod_network_cidr: "10.244.0.0/16"
+    k8s_version: "1.27.*"
+
+  tasks:
+    - name: Install dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - net-tools
+        state: present
+        update_cache: yes
+
+    - name: Add Docker & K8s apt key
+      apt_key:
+        url: "{{ item }}"
+        state: present
+      loop:
+        - https://download.docker.com/linux/ubuntu/gpg
+        - https://packages.cloud.google.com/apt/doc/apt-key.gpg
+
+    - name: Add repo Docker
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Add repo K8s
+      apt_repository:
+        repo: "deb https://apt.kubernetes.io/ kubernetes-xenial main"
+        state: present
+
+    - name: Install containerd, kubelet, kubeadm, kubectl
+      apt:
+        name:
+          - containerd.io
+          - kubelet={{ k8s_version }}
+          - kubeadm={{ k8s_version }}
+          - kubectl={{ k8s_version }}
+        state: present
+        update_cache: yes
+
+    - name: Hold packages
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+    - name: Enable & start kubelet
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+    - name: Generate kubeadm join command (phía master đã init)
+      # Thực tế: lệnh này lấy từ Redis/key-value do master đẩy xuống
+      debug:
+        msg: "Node ready – join command sẽ được Kafka consumer inject vào facts"
